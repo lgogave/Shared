@@ -1,0 +1,178 @@
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        string filePath = "path_to_your_file.xlsx"; // Update with your file path
+
+        // Read pivot tables and their source data as DataTable from the Dashboard sheet
+        DataTable pivotSourceData = ReadPivotTablesSourceDataAsDataTable(filePath);
+
+        // Display the DataTable contents
+        PrintDataTable(pivotSourceData);
+    }
+
+    public static DataTable ReadPivotTablesSourceDataAsDataTable(string filePath)
+    {
+        DataTable dataTable = new DataTable();
+
+        using (SpreadsheetDocument document = SpreadsheetDocument.Open(filePath, false))
+        {
+            WorkbookPart workbookPart = document.WorkbookPart;
+
+            // Find the "Dashboard" sheet
+            var dashboardSheet = workbookPart.Workbook.Sheets
+                .Elements<Sheet>()
+                .FirstOrDefault(s => s.Name == "Dashboard");
+
+            if (dashboardSheet != null)
+            {
+                // Iterate through all the PivotTables in the workbook
+                foreach (var pivotTablePart in workbookPart.PivotTableParts)
+                {
+                    // Access the PivotTable
+                    var pivotTable = pivotTablePart.PivotTable;
+
+                    // Check if the pivot table is related to the Dashboard
+                    if (pivotTable.CacheDefinitionId.Value == dashboardSheet.Id.Value)
+                    {
+                        // Access the PivotTableCache
+                        var pivotTableCache = pivotTablePart.PivotTableCacheDefinitionPart.PivotTableCacheDefinition;
+
+                        if (pivotTableCache != null)
+                        {
+                            // Get the reference to the source data range
+                            string cacheReference = pivotTableCache.CacheSource.WorksheetSource.Reference;
+
+                            // Access the sheet containing the source data
+                            WorksheetPart sourceWorksheetPart = GetWorksheetPartById(workbookPart, pivotTableCache.CacheSource.WorksheetSource.Id);
+
+                            if (sourceWorksheetPart != null)
+                            {
+                                // Read the source data range as a DataTable
+                                dataTable = ReadSourceDataAsDataTable(sourceWorksheetPart, cacheReference);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                Console.WriteLine("No sheet named 'Dashboard' found.");
+            }
+        }
+
+        return dataTable;
+    }
+
+    private static DataTable ReadSourceDataAsDataTable(WorksheetPart worksheetPart, string reference)
+    {
+        DataTable dataTable = new DataTable();
+        var sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
+        var cellReferences = GetCellReferences(reference);
+
+        // First, read the header row (assumed to be the first row)
+        var headerRow = sheetData.Elements<Row>().FirstOrDefault();
+        if (headerRow != null)
+        {
+            foreach (var cell in headerRow.Elements<Cell>())
+            {
+                string columnName = GetCellValue(worksheetPart, cell);
+                dataTable.Columns.Add(columnName);
+            }
+        }
+
+        // Read the data rows
+        foreach (var row in sheetData.Elements<Row>().Skip(1)) // Skip the header row
+        {
+            var rowData = new object[dataTable.Columns.Count];
+            int i = 0;
+            foreach (var cell in row.Elements<Cell>())
+            {
+                if (cellReferences.Contains(cell.CellReference))
+                {
+                    rowData[i++] = GetCellValue(worksheetPart, cell);
+                }
+            }
+            if (rowData.Any())
+            {
+                dataTable.Rows.Add(rowData);
+            }
+        }
+
+        return dataTable;
+    }
+
+    private static HashSet<string> GetCellReferences(string reference)
+    {
+        var cellReferences = new HashSet<string>();
+        // Split the reference to get the column and row parts
+        string[] parts = reference.Split(':');
+        string startRef = parts[0];
+        string endRef = parts.Length > 1 ? parts[1] : startRef;
+
+        // Extract row and column indices
+        int startRow = int.Parse(new string(startRef.Where(char.IsDigit).ToArray()));
+        int endRow = int.Parse(new string(endRef.Where(char.IsDigit).ToArray()));
+        
+        char startColumn = startRef[0];
+        char endColumn = endRef[0];
+
+        // Generate cell references
+        for (char col = startColumn; col <= endColumn; col++)
+        {
+            for (int row = startRow; row <= endRow; row++)
+            {
+                cellReferences.Add($"{col}{row}");
+            }
+        }
+
+        return cellReferences;
+    }
+
+    private static string GetCellValue(WorksheetPart worksheetPart, Cell cell)
+    {
+        string value = cell.InnerText;
+
+        // Check for shared string table
+        if (cell.DataType != null && cell.DataType.Value == CellValues.SharedString)
+        {
+            var sharedStringTablePart = worksheetPart.WorkbookPart.SharedStringTablePart;
+            if (sharedStringTablePart != null)
+            {
+                var sharedStringTable = sharedStringTablePart.SharedStringTable;
+                value = sharedStringTable.Elements<SharedStringItem>().ElementAt(int.Parse(value)).InnerText;
+            }
+        }
+
+        return value;
+    }
+
+    private static WorksheetPart GetWorksheetPartById(WorkbookPart workbookPart, string sheetId)
+    {
+        var sheet = workbookPart.Workbook.Sheets.Elements<Sheet>().FirstOrDefault(s => s.Id == sheetId);
+        if (sheet != null)
+        {
+            return (WorksheetPart)workbookPart.GetPartById(sheet.Id);
+        }
+        return null;
+    }
+
+    private static void PrintDataTable(DataTable dataTable)
+    {
+        foreach (DataRow row in dataTable.Rows)
+        {
+            foreach (var item in row.ItemArray)
+            {
+                Console.Write($"{item}\t");
+            }
+            Console.WriteLine();
+        }
+    }
+}
