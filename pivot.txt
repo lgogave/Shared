@@ -1,178 +1,195 @@
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Spreadsheet;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-
-class Program
-{
     static void Main(string[] args)
-    {
-        string filePath = "path_to_your_file.xlsx"; // Update with your file path
-
-        // Read pivot tables and their source data as DataTable from the Dashboard sheet
-        DataTable pivotSourceData = ReadPivotTablesSourceDataAsDataTable(filePath);
-
-        // Display the DataTable contents
-        PrintDataTable(pivotSourceData);
-    }
-
-    public static DataTable ReadPivotTablesSourceDataAsDataTable(string filePath)
-    {
-        DataTable dataTable = new DataTable();
-
-        using (SpreadsheetDocument document = SpreadsheetDocument.Open(filePath, false))
         {
-            WorkbookPart workbookPart = document.WorkbookPart;
-
-            // Find the "Dashboard" sheet
-            var dashboardSheet = workbookPart.Workbook.Sheets
-                .Elements<Sheet>()
-                .FirstOrDefault(s => s.Name == "Dashboard");
-
-            if (dashboardSheet != null)
+            // Check if the user provided the file path as an argument
+            if (args.Length == 0)
             {
-                // Iterate through all the PivotTables in the workbook
-                foreach (var pivotTablePart in workbookPart.PivotTableParts)
+                Console.WriteLine("Please provide the Excel file path as an argument.");
+                //return;
+              
+            }
+            //string filePath = args[0];
+            string filePath = @"C:\Users\Laxmikant\Downloads\wex-schd-adh.xlsx";
+            Application excelApp = null;
+            Workbook workbook = null;
+            Worksheet worksheet = null;
+
+            try
+            {
+                // Start Excel application
+                excelApp = new Application();
+                excelApp.DisplayAlerts = false;  // Prevent Excel prompts
+                excelApp.Visible = true;
+                // Open Excel file
+                workbook = excelApp.Workbooks.Open(filePath);
+                //worksheet = workbook.Sheets[1] as Worksheet;
+                worksheet = workbook.Sheets["Pivots"] as Worksheet;
+                // Access the PivotTable
+                //PivotTable pivotTable = worksheet.PivotTables(1) as PivotTable;
+                string pivotTableName = "PivotTable1";
+                foreach (PivotTable pivotTable in worksheet.PivotTables())
                 {
-                    // Access the PivotTable
-                    var pivotTable = pivotTablePart.PivotTable;
+                    Console.WriteLine($"Processing PivotTable: {pivotTable.Name} on sheet: {worksheet.Name}");
+                    if (pivotTable.Name.ToLower() != pivotTableName.ToLower())
+                        continue;
+                    ClearPivotTableFilters(pivotTable);
+                    // Get the initial list of sheet names before the drill-down
+                    var initialSheetNames = GetSheetNames(workbook);
 
-                    // Check if the pivot table is related to the Dashboard
-                    if (pivotTable.CacheDefinitionId.Value == dashboardSheet.Id.Value)
+                    // Perform double-click on the Grand Total cell (drill-down)
+                    Range grandTotalCell = pivotTable.TableRange2.Cells[pivotTable.TableRange2.Rows.Count, pivotTable.TableRange2.Columns.Count];
+                    grandTotalCell.ShowDetail = true;
+
+                    // Get the list of sheet names after the drill-down
+                    var updatedSheetNames = GetSheetNames(workbook);
+
+                    // Find the newly added sheet by comparing the lists
+                    string newSheetName = updatedSheetNames.Except(initialSheetNames).FirstOrDefault();
+
+                    if (!string.IsNullOrEmpty(newSheetName))
                     {
-                        // Access the PivotTableCache
-                        var pivotTableCache = pivotTablePart.PivotTableCacheDefinitionPart.PivotTableCacheDefinition;
+                        // Get the newly created worksheet reference
+                        Worksheet newDetailSheet = workbook.Sheets[newSheetName] as Worksheet;
 
-                        if (pivotTableCache != null)
+                        // Convert the detailed sheet data into a DataTable
+                        DataTable dataTable = ConvertWorksheetToDataTableFaster(newDetailSheet);
+
+                        // Display the DataTable (optional)
+                        foreach (DataRow row in dataTable.Rows)
                         {
-                            // Get the reference to the source data range
-                            string cacheReference = pivotTableCache.CacheSource.WorksheetSource.Reference;
-
-                            // Access the sheet containing the source data
-                            WorksheetPart sourceWorksheetPart = GetWorksheetPartById(workbookPart, pivotTableCache.CacheSource.WorksheetSource.Id);
-
-                            if (sourceWorksheetPart != null)
+                            foreach (var item in row.ItemArray)
                             {
-                                // Read the source data range as a DataTable
-                                dataTable = ReadSourceDataAsDataTable(sourceWorksheetPart, cacheReference);
+                                Console.Write(item + "\t");
                             }
+                            Console.WriteLine();
                         }
+
+                        // Delete the temporary sheet (optional)
+                        newDetailSheet.Delete();
                     }
+                    else
+                    {
+                        Console.WriteLine("No new sheet was created.");
+                    }
+
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("No sheet named 'Dashboard' found.");
+                Console.WriteLine("Error: " + ex.Message);
+            }
+            finally
+            {
+                // Clean up Excel COM objects properly
+                if (workbook != null)
+                {
+                    workbook.Close(false); // Close without saving
+                    Marshal.ReleaseComObject(workbook);
+                }
+
+                if (excelApp != null)
+                {
+                    excelApp.DisplayAlerts = true;
+                    excelApp.Quit(); // Quit the Excel application
+                    Marshal.ReleaseComObject(excelApp);
+                }
+
+                if (worksheet != null)
+                {
+                    Marshal.ReleaseComObject(worksheet);
+                }
+
+                // Force garbage collection to ensure COM objects are fully released
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
             }
         }
 
-        return dataTable;
-    }
-
-    private static DataTable ReadSourceDataAsDataTable(WorksheetPart worksheetPart, string reference)
-    {
-        DataTable dataTable = new DataTable();
-        var sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
-        var cellReferences = GetCellReferences(reference);
-
-        // First, read the header row (assumed to be the first row)
-        var headerRow = sheetData.Elements<Row>().FirstOrDefault();
-        if (headerRow != null)
+        static DataTable ConvertWorksheetToDataTable(Worksheet worksheet)
         {
-            foreach (var cell in headerRow.Elements<Cell>())
+            DataTable dataTable = new DataTable();
+            Range usedRange = worksheet.UsedRange; // Get the full used range in the worksheet
+            int colCount = usedRange.Columns.Count;
+            int rowCount = usedRange.Rows.Count;
+
+            // Add columns to DataTable based on the header row (first row)
+            for (int col = 1; col <= colCount; col++)
             {
-                string columnName = GetCellValue(worksheetPart, cell);
+                Range headerCell = usedRange.Cells[1, col] as Range;
+                string columnName = headerCell?.Value2 != null ? headerCell.Value2.ToString() : "Column" + col;
                 dataTable.Columns.Add(columnName);
             }
-        }
 
-        // Read the data rows
-        foreach (var row in sheetData.Elements<Row>().Skip(1)) // Skip the header row
-        {
-            var rowData = new object[dataTable.Columns.Count];
-            int i = 0;
-            foreach (var cell in row.Elements<Cell>())
+            // Add rows to DataTable (from row 2 to the last row)
+            for (int row = 2; row <= rowCount; row++) // Skip the header row
             {
-                if (cellReferences.Contains(cell.CellReference))
+                DataRow dataRow = dataTable.NewRow();
+                for (int col = 1; col <= colCount; col++)
                 {
-                    rowData[i++] = GetCellValue(worksheetPart, cell);
+                    Range cell = usedRange.Cells[row, col] as Range;
+                    dataRow[col - 1] = cell?.Value2 != null ? cell.Value2.ToString() : string.Empty;
+                }
+                dataTable.Rows.Add(dataRow);
+            }
+
+            return dataTable;
+        }
+        // Helper method to get the list of sheet names in the workbook
+        static string[] GetSheetNames(Workbook workbook)
+        {
+            int sheetCount = workbook.Sheets.Count;
+            string[] sheetNames = new string[sheetCount];
+
+            for (int i = 1; i <= sheetCount; i++)
+            {
+                Worksheet sheet = workbook.Sheets[i] as Worksheet;
+                sheetNames[i - 1] = sheet.Name;
+            }
+
+            return sheetNames;
+        }
+        static void ClearPivotTableFilters(PivotTable pivotTable)
+        {
+            foreach (PivotField pivotField in pivotTable.PivotFields())
+            {
+                // Clear filters for all types of fields: row, column, and page (top filters)
+                if (pivotField.Orientation == XlPivotFieldOrientation.xlRowField ||
+                    pivotField.Orientation == XlPivotFieldOrientation.xlColumnField ||
+                    pivotField.Orientation == XlPivotFieldOrientation.xlPageField) // Top filters
+                {
+                    pivotField.ClearAllFilters(); // Clears any filters applied
                 }
             }
-            if (rowData.Any())
-            {
-                dataTable.Rows.Add(rowData);
-            }
         }
-
-        return dataTable;
-    }
-
-    private static HashSet<string> GetCellReferences(string reference)
-    {
-        var cellReferences = new HashSet<string>();
-        // Split the reference to get the column and row parts
-        string[] parts = reference.Split(':');
-        string startRef = parts[0];
-        string endRef = parts.Length > 1 ? parts[1] : startRef;
-
-        // Extract row and column indices
-        int startRow = int.Parse(new string(startRef.Where(char.IsDigit).ToArray()));
-        int endRow = int.Parse(new string(endRef.Where(char.IsDigit).ToArray()));
-        
-        char startColumn = startRef[0];
-        char endColumn = endRef[0];
-
-        // Generate cell references
-        for (char col = startColumn; col <= endColumn; col++)
+        static DataTable ConvertWorksheetToDataTableFaster(Worksheet worksheet)
         {
-            for (int row = startRow; row <= endRow; row++)
+            // Get the used range of the worksheet
+            Range usedRange = worksheet.UsedRange;
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            // Create a DataTable with the same number of columns
+            DataTable dt = new DataTable();
+
+            // Read the entire used range into a 2D array for faster access
+            object[,] cellValues = (object[,])usedRange.Value2;
+
+            // Add columns based on the first row (header)
+            for (int col = 1; col <= colCount; col++)
             {
-                cellReferences.Add($"{col}{row}");
+                dt.Columns.Add(cellValues[1, col]?.ToString() ?? $"Column {col}");
             }
-        }
 
-        return cellReferences;
-    }
-
-    private static string GetCellValue(WorksheetPart worksheetPart, Cell cell)
-    {
-        string value = cell.InnerText;
-
-        // Check for shared string table
-        if (cell.DataType != null && cell.DataType.Value == CellValues.SharedString)
-        {
-            var sharedStringTablePart = worksheetPart.WorkbookPart.SharedStringTablePart;
-            if (sharedStringTablePart != null)
+            // Add rows starting from the second row (skipping header)
+            for (int row = 2; row <= rowCount; row++)
             {
-                var sharedStringTable = sharedStringTablePart.SharedStringTable;
-                value = sharedStringTable.Elements<SharedStringItem>().ElementAt(int.Parse(value)).InnerText;
+                DataRow dataRow = dt.NewRow();
+                for (int col = 1; col <= colCount; col++)
+                {
+                    dataRow[col - 1] = cellValues[row, col]?.ToString() ?? string.Empty;
+                }
+                dt.Rows.Add(dataRow);
             }
-        }
 
-        return value;
-    }
-
-    private static WorksheetPart GetWorksheetPartById(WorkbookPart workbookPart, string sheetId)
-    {
-        var sheet = workbookPart.Workbook.Sheets.Elements<Sheet>().FirstOrDefault(s => s.Id == sheetId);
-        if (sheet != null)
-        {
-            return (WorksheetPart)workbookPart.GetPartById(sheet.Id);
-        }
-        return null;
-    }
-
-    private static void PrintDataTable(DataTable dataTable)
-    {
-        foreach (DataRow row in dataTable.Rows)
-        {
-            foreach (var item in row.ItemArray)
-            {
-                Console.Write($"{item}\t");
-            }
-            Console.WriteLine();
+            return dt;
         }
     }
-}
