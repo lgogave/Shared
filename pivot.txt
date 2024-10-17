@@ -1,15 +1,383 @@
-Introduction: "We are currently using a single-window application for our Workforce Management (WFM) reporting, with the reporting structure divided into geographical and vertical categories. For today's demonstration, we will focus on the 'Travel' vertical."
+public ActionResult Notifications()
+{
+    List<Notification> notifications = new List<Notification>();
 
-Vertical Selection and Navigation: "Once we select the Travel vertical, you'll notice a variety of reporting options such as Real-Time Reports, Resource Planner Inputs and Outputs, Trends, and a Vertical Snapshot. For this demo, we’ll choose the Real-Time Report option."
+    // Example data for frequent defaulter agents
+    var defaulterAgents = new List<(string EmpId, string Name, int ViolationCount, string Location, string LOB, string Supervisor, string Role)>
+    {
+        ("101", "John Doe", 5, "New York", "Sales", "Alice Johnson", "Agent"),
+        ("102", "Jane Smith", 4, "Chicago", "Support", "Bob Brown", "Senior Agent"),
+        ("103", "Mark Wilson", 6, "Los Angeles", "Operations", "Charlie Davis", "Agent")
+    };
 
-Summary View: "This action takes us to a summary page, where key day-level metrics such as Service Level Percentage (SL%) and Shrinkage Percentage are displayed. These provide an at-a-glance overview of current performance."
+    foreach (var agent in defaulterAgents)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Frequent Defaulter Agent",
+            Description = $"Agent {agent.Name} (ID: {agent.EmpId}) from {agent.Location} in {agent.LOB} " +
+                          $"under Supervisor {agent.Supervisor} with role {agent.Role} has missed schedule adherence " +
+                          $"{agent.ViolationCount} times.",
+            Category = "FrequentDefaulters"
+        });
+    }
 
-Detailed View – Real-Time Report: "Now, let's drill down into the details by clicking on the 'RTA' option. Here, you can see a comprehensive report with detailed information, presented in both chart and grid formats. On this first page, we display interval-wise comparisons, such as Planned vs. Actual Volume, Service Level %, and Shrinkage %. Additionally, the data is laid out in a table format, complete with RAG (Red, Amber, Green) status indicators. You also have Interval Summary and Shrinkage Summary at your disposal for a more granular view."
+    // Example data for activities with poor adherence
+    var poorAdherenceActivities = new List<(string Activity, int AgentCount, string Location, string LOB)>
+    {
+        ("Break", 10, "New York", "Sales"),
+        ("Meeting", 8, "Chicago", "Support"),
+        ("Training", 7, "Los Angeles", "Operations")
+    };
 
-Filtering Capabilities: "To customize the data view, we’ve incorporated various filters such as Queue, Location, Week, Month, and Date. This helps you easily narrow down the information according to your specific needs."
+    foreach (var activity in poorAdherenceActivities)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Activities with Poor Adherence",
+            Description = $"The activity '{activity.Activity}' in {activity.Location} for {activity.LOB} " +
+                          $"has an average adherence below 80% with {activity.AgentCount} agents affected.",
+            Category = "PoorActivities"
+        });
+    }
 
-Resource Planner Overview: "Let’s now return to the main menu and check out the Resource Planner module. This section captures all key metrics such as Required FTE, Available FTE, Planned Shrinkage, and Attrition. We’ve structured the data inputs under headers for planned assumptions to make it easier for you to input or analyze your data."
+    // Example data for high adherence issues by time
+    var highAdherenceTimePeriods = new List<(string TimePeriod, int ViolationCount, string Location, string LOB)>
+    {
+        ("9 AM - 10 AM", 15, "New York", "Sales"),
+        ("2 PM - 3 PM", 12, "Chicago", "Support")
+    };
 
-Headcount Delta Comparison: "Lastly, in the menu, you'll find a feature that allows you to compare headcount delta between multiple Lines of Business (LOBs), helping you to plan headcount more effectively and optimize staffing levels."
+    foreach (var period in highAdherenceTimePeriods)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "High Adherence Issues by Time Period",
+            Description = $"During the time period '{period.TimePeriod}' in {period.Location} for {period.LOB}, " +
+                          $"{period.ViolationCount} adherence violations were reported.",
+            Category = "HighAdherenceTimePeriod"
+        });
+    }
 
-Closing: "In summary, this application provides a comprehensive view of workforce management across multiple dimensions, with detailed reporting options, flexible filtering, and robust planning capabilities. Let’s dive into any questions you may have."
+    // Example data for location-based adherence issues
+    var locationIssues = new List<(string Location, int ViolationCount, string LOB, string Supervisor)>
+    {
+        ("New York", 20, "Sales", "Alice Johnson"),
+        ("Chicago", 18, "Support", "Bob Brown")
+    };
+
+    foreach (var issue in locationIssues)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Location-Based Adherence Issues",
+            Description = $"In {issue.Location} for {issue.LOB}, there were {issue.ViolationCount} adherence issues " +
+                          $"reported under Supervisor {issue.Supervisor}.",
+            Category = "LocationIssues"
+        });
+    }
+
+    // Example data for supervisors managing poor adherence teams
+    var supervisorIssues = new List<(string Supervisor, int ViolationCount, string Location, string LOB)>
+    {
+        ("Alice Johnson", 25, "New York", "Sales"),
+        ("Bob Brown", 22, "Chicago", "Support")
+    };
+
+    foreach (var supervisor in supervisorIssues)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Supervisors Managing Poor Adherence Teams",
+            Description = $"Supervisor {supervisor.Supervisor} in {supervisor.Location} for {supervisor.LOB} " +
+                          $"has reported {supervisor.ViolationCount} adherence violations.",
+            Category = "SupervisorIssues"
+        });
+    }
+
+    // Example data for agents with drastic adherence changes
+    var drasticChanges = new List<(string EmpId, string Name, string Location, string LOB, string Supervisor, string Role, int ChangeCount)>
+    {
+        ("101", "John Doe", "New York", "Sales", "Alice Johnson", "Agent", 3),
+        ("102", "Jane Smith", "Chicago", "Support", "Bob Brown", "Senior Agent", 2)
+    };
+
+    foreach (var agent in drasticChanges)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Agents with Drastic Adherence Changes",
+            Description = $"Agent {agent.Name} (ID: {agent.EmpId}) from {agent.Location} in {agent.LOB} " +
+                          $"under Supervisor {agent.Supervisor} with role {agent.Role} has had {agent.ChangeCount} drastic changes in adherence.",
+            Category = "DrasticChanges"
+        });
+    }
+
+    // Example data for agents consistently meeting adherence
+    var consistentAgents = new List<(string EmpId, string Name, string Location, string LOB, string Supervisor, string Role, int MeetingCount)>
+    {
+        ("201", "Alice Brown", "New York", "Sales", "Charlie Davis", "Agent", 10),
+        ("202", "Tom White", "Chicago", "Support", "Eve Adams", "Senior Agent", 9)
+    };
+
+    foreach (var agent in consistentAgents)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Agents Consistently Meeting Adherence",
+            Description = $"Agent {agent.Name} (ID: {agent.EmpId}) from {agent.Location} in {agent.LOB} " +
+                          $"under Supervisor {agent.Supervisor} with role {agent.Role} has met adherence {agent.MeetingCount} times.",
+            Category = "ConsistentAdherence"
+        });
+    }
+
+    // Example data for inconsistent adherence patterns
+    var inconsistentPatterns = new List<(string Week, int ViolationCount, string Location, string LOB)>
+    {
+        ("Week 1", 15, "New York", "Sales"),
+        ("Week 2", 18, "Chicago", "Support")
+    };
+
+    foreach (var pattern in inconsistentPatterns)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Inconsistent Adherence Patterns by Week",
+            Description = $"In {pattern.Week} for {pattern.Location} in {pattern.LOB}, there were {pattern.ViolationCount} adherence violations.",
+            Category = "InconsistentPatterns"
+        });
+    }
+
+    // Example data for high adherence rate activities
+    var highAdherenceActivities = new List<(string Activity, int AdherenceCount, string Location, string LOB)>
+    {
+        ("Break", 90, "New York", "Sales"),
+        ("Meeting", 85, "Chicago", "Support")
+    };
+
+    foreach (var activity in highAdherenceActivities)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "High Adherence Rate Activities",
+            Description = $"The activity '{activity.Activity}' in {activity.Location} for {activity.LOB} " +
+                          $"has an adherence rate of {activity.AdherenceCount}%.",
+            Category = "HighAdherenceActivities"
+        });
+    }
+
+    // Example data for common causes for adherence failures
+    var commonCauses = new List<(string Cause, int Count, string Location, string LOB)>
+    {
+        ("Personal Issues", 30, "New York", "Sales"),
+        ("Lack of Training", 25, "Chicago", "Support")
+    };
+
+    foreach (var cause in commonCauses)
+    {
+        notifications.Add(new Notification
+        {
+            Title = "Common Causes for Adherence Failures",
+            Description = $"In {cause.Location} for {cause.LOB}, '{cause.Cause}' was reported as a cause for adherence failures " +
+                          $"by {cause.Count} agents.",
+            Category = "CommonCauses"
+        });
+    }
+
+    return View(notifications);
+}
+
+
+
+1. Frequent Defaulter Agents
+CREATE PROCEDURE GetFrequentDefaulterAgents
+AS
+BEGIN
+    SELECT 
+        EmpId,
+        Name,
+        COUNT(*) AS ViolationCount,
+        Location,
+        LOB,
+        Supervisor,
+        Role
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        EmpId, Name, Location, LOB, Supervisor, Role
+    HAVING 
+        COUNT(*) > 3; -- More than 3 violations
+END
+
+2. Activities with Poor Adherence
+CREATE PROCEDURE GetPoorAdherenceActivities
+AS
+BEGIN
+    SELECT 
+        Scheduled_Activity AS Activity,
+        COUNT(DISTINCT EmpId) AS AgentCount,
+        Location,
+        LOB
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        Scheduled_Activity, Location, LOB
+    HAVING 
+        COUNT(DISTINCT EmpId) > 3; -- More than 3 agents not meeting adherence
+END
+
+3. High Adherence Issues by Time Period
+CREATE PROCEDURE GetHighAdherenceIssuesByTime
+AS
+BEGIN
+    SELECT 
+        DATEPART(HOUR, Scheduled_From) AS Hour,
+        COUNT(*) AS ViolationCount,
+        Location,
+        LOB
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        DATEPART(HOUR, Scheduled_From), Location, LOB
+    HAVING 
+        COUNT(*) > 5; -- More than 5 violations in that hour
+END
+
+4. Location-Based Adherence Issues
+CREATE PROCEDURE GetLocationIssues
+AS
+BEGIN
+    SELECT 
+        Location,
+        COUNT(*) AS ViolationCount,
+        LOB,
+        Supervisor
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        Location, LOB, Supervisor
+    HAVING 
+        COUNT(*) > 10; -- More than 10 violations
+END
+
+5. Supervisors Managing Poor Adherence Teams
+CREATE PROCEDURE GetSupervisorIssues
+AS
+BEGIN
+    SELECT 
+        Supervisor,
+        COUNT(*) AS ViolationCount,
+        Location,
+        LOB
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        Supervisor, Location, LOB
+    HAVING 
+        COUNT(*) > 5; -- More than 5 violations per supervisor
+END
+
+6. Agents with Drastic Adherence Changes
+CREATE PROCEDURE GetDrasticChanges
+AS
+BEGIN
+    SELECT 
+        EmpId,
+        Name,
+        Location,
+        LOB,
+        Supervisor,
+        Role,
+        COUNT(CASE WHEN (Actual_Duration / Scheduled_Duration * 100) < 80 THEN 1 END) AS ChangeCount
+    FROM 
+        ScheduleAdherence
+    GROUP BY 
+        EmpId, Name, Location, LOB, Supervisor, Role
+    HAVING 
+        COUNT(CASE WHEN (Actual_Duration / Scheduled_Duration * 100) < 80 THEN 1 END) > 2; -- Drastic changes
+END
+
+7. Agents Consistently Meeting Adherence
+CREATE PROCEDURE GetConsistentAdherence
+AS
+BEGIN
+    SELECT 
+        EmpId,
+        Name,
+        Location,
+        LOB,
+        Supervisor,
+        Role,
+        COUNT(*) AS MeetingCount
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) >= 80
+    GROUP BY 
+        EmpId, Name, Location, LOB, Supervisor, Role
+    HAVING 
+        COUNT(*) >= 10; -- Meeting adherence 10 times or more
+END
+
+8. Inconsistent Adherence Patterns by Week
+CREATE PROCEDURE GetInconsistentPatterns
+AS
+BEGIN
+    SELECT 
+        DATEPART(WEEK, Date) AS Week,
+        COUNT(*) AS ViolationCount,
+        Location,
+        LOB
+    FROM 
+        ScheduleAdherence
+    WHERE 
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        DATEPART(WEEK, Date), Location, LOB
+    HAVING 
+        COUNT(*) > 5; -- More than 5 violations
+END
+
+9. High Adherence Rate Activities
+CREATE PROCEDURE GetHighAdherenceRateActivities
+AS
+BEGIN
+    SELECT 
+        Scheduled_Activity AS Activity,
+        AVG(Actual_Duration / Scheduled_Duration * 100) AS AdherenceRate,
+        Location,
+        LOB
+    FROM 
+        ScheduleAdherence
+    GROUP BY 
+        Scheduled_Activity, Location, LOB
+    HAVING 
+        AVG(Actual_Duration / Scheduled_Duration * 100) >= 90; -- High adherence activities
+END
+
+10. Common Causes for Adherence Failures
+CREATE PROCEDURE GetCommonCauses
+AS
+BEGIN
+    SELECT 
+        Cause,
+        COUNT(*) AS Count,
+        Location,
+        LOB
+    FROM 
+        AdherenceFailureCauses -- Assuming you have a separate table for causes
+    GROUP BY 
+        Cause, Location, LOB
+    HAVING 
+        COUNT(*) > 5; -- Common causes reported by more than 5 agents
+END
