@@ -1,38 +1,43 @@
 ALTER PROCEDURE [dbo].[GetSchAdhRawData]
-	@Date datetime,	
-	@Report as int=0,
-	@MainReport as int=0,
-	@Week varchar(12)=null,
-	@MonthYear varchar(12)=null
-	
+    @Date DATETIME,
+    @Report INT = 0,
+    @MainReport INT = 0,
+    @Week VARCHAR(12) = NULL,
+    @MonthYear VARCHAR(12) = NULL
 AS
-
 BEGIN
-SET NOCOUNT ON;
---SET @MonthYear ='10-2024'
-Declare @MM int=0,@YY int=0
-set @YY=CAST(SUBSTRING(@MonthYear, 4, 7) as int);
-set @MM=CAST(SUBSTRING(@MonthYear, 0, 3) as int);
-BEGIN
-	SELECT 
-	Convert(varchar,[Date],106) as [Date],
-	empId AS EmpID,
-	[Name] AS AgentName,
-	Supervisor,
-	Trainer,
-	[Role],
-	[Production Status] AS ProdStatus,
-	[Roster Status] AS RostStatus,
-	[Location],[Site],LOB,
-	Schedule_Activity As SchActivity,
-	SUM(Scheduled_Duration) AS SchDuration,
-	SUM(Actual_Duration) AS ActDuration,Wave,
-	0 As AdherencePer
-	FROM TranSchAdhWex
-	WHERE 
-    ReportMonth=@MM AND ReportYear=@YY 
-	GROUP by Date,empId,Name,Supervisor,Trainer,Role,[Production Status],Location,Site,LOB,Schedule_Activity,Wave,[Roster Status]
-END
-	
+    SET NOCOUNT ON;
 
+    DECLARE @SQL NVARCHAR(MAX) = ''
+    DECLARE @Params NVARCHAR(MAX) = N'@MM INT, @YY INT'
+    DECLARE @MM INT = 0, @YY INT = 0
+
+    SET @YY = CAST(SUBSTRING(@MonthYear, 4, 7) AS INT);
+    SET @MM = CAST(SUBSTRING(@MonthYear, 1, 2) AS INT); -- Adjusted to extract month correctly
+
+    SET @SQL = '
+        SELECT 
+            CONVERT(VARCHAR, [Date], 106) AS [Date],
+            empId AS EmpID,
+            [Name] AS AgentName,
+            Supervisor,
+            Trainer,
+            [Role],
+            [Production Status] AS ProdStatus,
+            [Roster Status] AS RostStatus,
+            [Location],
+            [Site],
+            LOB,
+            Schedule_Activity AS SchActivity,
+            SUM(Scheduled_Duration) AS SchDuration,
+            SUM(Actual_Duration) AS ActDuration,
+            Wave,
+            0 AS AdherencePer
+        FROM TranSchAdhWex
+        WHERE 
+            ReportMonth = @MM AND ReportYear = @YY 
+        GROUP BY 
+            [Date], empId, [Name], Supervisor, Trainer, [Role], [Production Status], [Location], [Site], LOB, Schedule_Activity, Wave, [Roster Status]'
+
+    EXEC sp_executesql @SQL, @Params, @MM = @MM, @YY = @YY
 END
