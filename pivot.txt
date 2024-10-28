@@ -1,78 +1,70 @@
-USE [RPDB]
-GO
-/****** Object:  StoredProcedure [dbo].[GetSchAdhDashboardOverall]    Script Date: 10/28/2024 4:58:32 PM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 ALTER PROCEDURE [dbo].[GetSchAdhDashboardOverall]
-@FromTable Varchar(25)=NULL,
-@Month SMALLINT = NULL,
-@Year SMALLINT = NULL,
-@LOB VARCHAR(MAX)=NULL,
-@Location VARCHAR(MAX)=NULL,
-@Superwisor VARCHAR(MAX)=NULL,
-@Agent VARCHAR(MAX)=NULL,
-@ProdStatus VARCHAR(MAX)=NULL
-AS 
+    @FromTable Varchar(25) = NULL,
+    @Month SMALLINT = NULL,
+    @Year SMALLINT = NULL,
+    @LOB VARCHAR(MAX) = NULL,
+    @Location VARCHAR(MAX) = NULL,
+    @Superwisor VARCHAR(MAX) = NULL,
+    @Agent VARCHAR(MAX) = NULL,
+    @ProdStatus VARCHAR(MAX) = NULL
+AS
 BEGIN
+    DECLARE @SQL NVARCHAR(MAX) = ''
+    DECLARE @Params NVARCHAR(MAX) = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), @Superwisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)'
+    
+    SET @SQL = '
+        DECLARE @maxDate DATETIME = (SELECT MAX([Date]) FROM [dbo].TranSchAdhWex 
+            WHERE ReportMonth = @Month AND ReportYear = @Year
+            AND (' + CASE WHEN @LOB IS NOT NULL THEN 'LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Location IS NOT NULL THEN '[Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Superwisor IS NOT NULL THEN '[Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Superwisor, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Agent IS NOT NULL THEN '[Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @ProdStatus IS NOT NULL THEN '[Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '',''))' ELSE '1 = 1' END + ')
+        )
 
---Declare 
---@Month SMALLINT = 10,
---@Year SMALLINT = 2024,
---@LOB VARCHAR(MAX)='NAF'
+        DECLARE @maxWeek DATETIME = (SELECT MAX([Week Begin]) FROM [dbo].TranSchAdhWex 
+            WHERE ReportMonth = @Month AND ReportYear = @Year
+            AND (' + CASE WHEN @LOB IS NOT NULL THEN 'LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Location IS NOT NULL THEN '[Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Superwisor IS NOT NULL THEN '[Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Superwisor, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Agent IS NOT NULL THEN '[Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @ProdStatus IS NOT NULL THEN '[Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '',''))' ELSE '1 = 1' END + ')
+        )
 
-   Declare @maxDate DATETIME = (SELECT MAX([Date]) FROM [dbo].TranSchAdhWex 
-   WHERE ReportMonth=@Month AND ReportYear=@Year 
-   AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
-   AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
-   AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
-   AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
-   AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))
-   )
-  
-  
-  
-  Declare @maxWeek DATETIME = (SELECT MAX([Week Begin]) FROM [dbo].TranSchAdhWex 
-   WHERE ReportMonth=@Month AND ReportYear=@Year 
-   AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
-   AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
-   AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
-   AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
-   AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))
-   )
-
-
-	SELECT 'Day' AS Header, [Date], SUM(Actual_Duration)/Sum(Scheduled_Duration) * 100 AS SchAdh 
-	FROM [dbo].TranSchAdhWex
-	WHERE [Date] = @maxDate
-	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
-	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
-	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
-	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
-	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))
-	
-	
-	GROUP BY [Date]
-	UNION
-	SELECT 'Week' AS Header, [Week Begin] as [Week], SUM(Actual_Duration)/Sum(Scheduled_Duration) * 100 AS SchAdh 
-	FROM [dbo].TranSchAdhWex
-	WHERE [Week Begin] = @maxWeek
-	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
-	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
-	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
-	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
-	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))
-	GROUP BY [Week Begin]
-	UNION
-	SELECT 'Month' AS Header, MAX([Date]) AS [Date], SUM(Actual_Duration)/Sum(Scheduled_Duration) * 100 AS SchAdh 
-	FROM [dbo].TranSchAdhWex 
-	WHERE ReportMonth=@Month AND ReportYear=@Year 
-	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
-	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
-	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
-	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
-	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))
-	GROUP BY MONTH([Date])
-	
+        SELECT ''Day'' AS Header, [Date], SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS SchAdh
+        FROM [dbo].TranSchAdhWex
+        WHERE [Date] = @maxDate
+            AND (' + CASE WHEN @LOB IS NOT NULL THEN 'LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Location IS NOT NULL THEN '[Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Superwisor IS NOT NULL THEN '[Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Superwisor, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Agent IS NOT NULL THEN '[Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @ProdStatus IS NOT NULL THEN '[Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '',''))' ELSE '1 = 1' END + ')
+        GROUP BY [Date]
+        
+        UNION
+        
+        SELECT ''Week'' AS Header, [Week Begin] AS [Week], SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS SchAdh
+        FROM [dbo].TranSchAdhWex
+        WHERE [Week Begin] = @maxWeek
+            AND (' + CASE WHEN @LOB IS NOT NULL THEN 'LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Location IS NOT NULL THEN '[Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Superwisor IS NOT NULL THEN '[Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Superwisor, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Agent IS NOT NULL THEN '[Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @ProdStatus IS NOT NULL THEN '[Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '',''))' ELSE '1 = 1' END + ')
+        GROUP BY [Week Begin]
+        
+        UNION
+        
+        SELECT ''Month'' AS Header, MAX([Date]) AS [Date], SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS SchAdh
+        FROM [dbo].TranSchAdhWex
+        WHERE ReportMonth = @Month AND ReportYear = @Year
+            AND (' + CASE WHEN @LOB IS NOT NULL THEN 'LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Location IS NOT NULL THEN '[Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Superwisor IS NOT NULL THEN '[Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Superwisor, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @Agent IS NOT NULL THEN '[Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '',''))' ELSE '1 = 1' END + ')
+            AND (' + CASE WHEN @ProdStatus IS NOT NULL THEN '[Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '',''))' ELSE '1 = 1' END + ')
+        GROUP BY MONTH([Date])
+    '
+    
+    EXEC sp_executesql @SQL, @Params, @Month = @Month, @Year = @Year, @LOB = @LOB, @Location = @Location, @Superwisor = @Superwisor, @Agent = @Agent, @ProdStatus = @ProdStatus
 END
