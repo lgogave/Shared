@@ -1,57 +1,29 @@
-ALTER PROCEDURE [dbo].[GetSchAdhDashboardBySupervisor]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Supervisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
+USE [RPDB]
+GO
+/****** Object:  StoredProcedure [dbo].[GetSchAdhDashboardByAgent]    Script Date: 10/28/2024 5:32:44 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER PROCEDURE [dbo].[GetSchAdhDashboardByAgent]
+@Month SMALLINT = NULL,
+@Year SMALLINT = NULL,
+@LOB VARCHAR(MAX)=NULL,
+@Location VARCHAR(MAX)=NULL,
+@Superwisor VARCHAR(MAX)=NULL,
+@Agent VARCHAR(MAX)=NULL,
+@ProdStatus VARCHAR(MAX)=NULL
 AS 
 BEGIN
-    DECLARE @SQL NVARCHAR(MAX);
-    DECLARE @ParamDefinition NVARCHAR(MAX);
-
-    -- Begin constructing the SQL query
-    SET @SQL = N'SELECT Supervisor, SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS SchAdh ' +
-               N'FROM [dbo].[TranSchAdhWex] WHERE 1=1 ';
-
-    -- Append mandatory filters
-    IF @Month IS NOT NULL
-        SET @SQL += N'AND ReportMonth = @Month ';
-
-    IF @Year IS NOT NULL
-        SET @SQL += N'AND ReportYear = @Year ';
-
-    -- Append optional filters using SplitString function for comma-separated values
-    IF @LOB IS NOT NULL
-        SET @SQL += N'AND LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '','')) ';
-
-    IF @Location IS NOT NULL
-        SET @SQL += N'AND [Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '','')) ';
-
-    IF @Supervisor IS NOT NULL
-        SET @SQL += N'AND [Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Supervisor, '','')) ';
-
-    IF @Agent IS NOT NULL
-        SET @SQL += N'AND [Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '','')) ';
-
-    IF @ProdStatus IS NOT NULL
-        SET @SQL += N'AND [Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '','')) ';
-
-    -- Group by Supervisor as specified
-    SET @SQL += N'GROUP BY Supervisor ';
-
-    -- Define parameters for sp_executesql
-    SET @ParamDefinition = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), ' +
-                           N'@Supervisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)';
-
-    -- Execute the dynamic SQL
-    EXEC sp_executesql @SQL, @ParamDefinition, 
-                       @Month = @Month, 
-                       @Year = @Year, 
-                       @LOB = @LOB, 
-                       @Location = @Location, 
-                       @Supervisor = @Supervisor, 
-                       @Agent = @Agent, 
-                       @ProdStatus = @ProdStatus;
+	SELECT  top 20 [Name] AS Agent,SUM(Actual_Duration)/Sum(Scheduled_Duration) * 100 AS SchAdh  
+	FROM [dbo].TranSchAdhWex
+	WHERE ReportMonth=@Month AND ReportYear=@Year 
+	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
+	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
+	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
+	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
+	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))
+	GROUP BY [Name] Order by SUM(Actual_Duration)/Sum(Scheduled_Duration) * 100  asc
 END
