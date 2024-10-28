@@ -1,41 +1,174 @@
-ALTER PROCEDURE [dbo].[GetSchAdhFrequentDefaulterAgents]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Superwisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
-AS
+ALTER PROCEDURE [dbo].[GetSchAdhPoorAdherenceActivities]
+@Month SMALLINT = NULL,
+@Year SMALLINT = NULL,
+@LOB VARCHAR(MAX)=NULL,
+@Location VARCHAR(MAX)=NULL,
+@Superwisor VARCHAR(MAX)=NULL,
+@Agent VARCHAR(MAX)=NULL,
+@ProdStatus VARCHAR(MAX)=NULL
+AS 
 BEGIN
-    DECLARE @SQL NVARCHAR(MAX) = ''
-    DECLARE @Params NVARCHAR(MAX) = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), @Superwisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)'
+  SELECT TOP 20
+        Schedule_Activity AS Activity,
+        COUNT(DISTINCT EmpId) AS AgentCount,
+        Location,
+        LOB
+    FROM 
+       [dbo].TranSchAdhWex
+    WHERE ReportMonth=@Month AND ReportYear=@Year  
+	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
+	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
+	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
+	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
+	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))	
+		AND Scheduled_Duration > 0 AND
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        Schedule_Activity, Location, LOB
+    HAVING 
+        COUNT(DISTINCT EmpId) > 3
+		ORDER BY AgentCount DESC
+END
 
-    SET @SQL = '
-        SELECT TOP 20
-            EmpId,
-            Name,
-            COUNT(*) AS ViolationCount,
-            Location,
-            LOB,
-            Supervisor,
-            Role
-        FROM 
-            [dbo].TranSchAdhWex
-        WHERE ReportMonth = @Month AND ReportYear = @Year
-            AND (' + CASE WHEN @LOB IS NOT NULL THEN 'LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '',''))' ELSE '1 = 1' END + ')
-            AND (' + CASE WHEN @Location IS NOT NULL THEN '[Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '',''))' ELSE '1 = 1' END + ')
-            AND (' + CASE WHEN @Superwisor IS NOT NULL THEN '[Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Superwisor, '',''))' ELSE '1 = 1' END + ')
-            AND (' + CASE WHEN @Agent IS NOT NULL THEN '[Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '',''))' ELSE '1 = 1' END + ')
-            AND (' + CASE WHEN @ProdStatus IS NOT NULL THEN '[Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '',''))' ELSE '1 = 1' END + ')
-            AND Scheduled_Duration > 0
-            AND (Actual_Duration / Scheduled_Duration * 100) < 80
-        GROUP BY 
-            EmpId, Name, Location, LOB, Supervisor, Role
-        HAVING 
-            COUNT(*) > 3
-        ORDER BY 
-            ViolationCount DESC'
 
-    EXEC sp_executesql @SQL, @Params, @Month = @Month, @Year = @Year, @LOB = @LOB, @Location = @Location, @Superwisor = @Superwisor, @Agent = @Agent, @ProdStatus = @ProdStatus
+
+
+ALTER PROCEDURE [dbo].[GetSchAdhIssuesbyTimePeriod]
+@Month SMALLINT = NULL,
+@Year SMALLINT = NULL,
+@LOB VARCHAR(MAX)=NULL,
+@Location VARCHAR(MAX)=NULL,
+@Superwisor VARCHAR(MAX)=NULL,
+@Agent VARCHAR(MAX)=NULL,
+@ProdStatus VARCHAR(MAX)=NULL
+AS 
+BEGIN
+	SELECT TOP 20  
+        DATEPART(HOUR, Scheduled_From) AS Hour,
+        COUNT(*) AS ViolationCount,
+        Location,
+        LOB
+    FROM 
+       [dbo].TranSchAdhWex
+    WHERE ReportMonth=@Month AND ReportYear=@Year 
+	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
+	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
+	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
+	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
+	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))	
+	AND Scheduled_Duration > 0 AND
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        DATEPART(HOUR, Scheduled_From), Location, LOB
+    HAVING 
+        COUNT(*) > 5 ORDER BY ViolationCount DESC
+
+END
+
+
+
+ALTER PROCEDURE [dbo].[GetSchAdhSupervisorsPoorAdherence]
+@Month SMALLINT = NULL,
+@Year SMALLINT = NULL,
+@LOB VARCHAR(MAX)=NULL,
+@Location VARCHAR(MAX)=NULL,
+@Superwisor VARCHAR(MAX)=NULL,
+@Agent VARCHAR(MAX)=NULL,
+@ProdStatus VARCHAR(MAX)=NULL
+AS 
+BEGIN
+	SELECT  TOP 20  
+        [Location],
+        COUNT(*) AS ViolationCount,
+        LOB,
+        Supervisor
+    FROM 
+        [dbo].TranSchAdhWex
+    WHERE ReportMonth=@Month AND ReportYear=@Year 
+	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
+	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
+	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
+	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
+	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))	
+		AND Scheduled_Duration > 0 AND
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        Location, LOB, Supervisor
+    HAVING 
+        COUNT(*) > 10 ORDER BY ViolationCount DESC
+
+END
+
+
+
+ALTER PROCEDURE [dbo].[GetSchAdhDrasticChanges]
+@Month SMALLINT = NULL,
+@Year SMALLINT = NULL,
+@LOB VARCHAR(MAX)=NULL,
+@Location VARCHAR(MAX)=NULL,
+@Superwisor VARCHAR(MAX)=NULL,
+@Agent VARCHAR(MAX)=NULL,
+@ProdStatus VARCHAR(MAX)=NULL
+AS 
+BEGIN
+		SELECT 
+        EmpId,
+        Name,
+        Location,
+        LOB,
+        Supervisor,
+        Role,
+        COUNT(CASE WHEN (Actual_Duration / Scheduled_Duration * 100) < 80 THEN 1 END) AS ChangeCount
+    FROM 
+        [dbo].TranSchAdhWex
+	WHERE ReportMonth=@Month AND ReportYear=@Year 
+	AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ',')))
+	AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
+	AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
+	AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
+	AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))	
+	AND Scheduled_Duration > 0 
+    GROUP BY 
+        EmpId, Name, Location, LOB, Supervisor, Role
+    HAVING 
+        COUNT(CASE WHEN (Actual_Duration / Scheduled_Duration * 100) < 80 THEN 1 END) > 2
+	ORDER BY ChangeCount DESC
+
+
+END
+
+
+
+ALTER PROCEDURE [dbo].[GetSchAdhInconsistentPatterns]
+@Month SMALLINT = NULL,
+@Year SMALLINT = NULL,
+@LOB VARCHAR(MAX)=NULL,
+@Location VARCHAR(MAX)=NULL,
+@Superwisor VARCHAR(MAX)=NULL,
+@Agent VARCHAR(MAX)=NULL,
+@ProdStatus VARCHAR(MAX)=NULL
+AS 
+BEGIN
+	 SELECT 
+        [Week Begin] As WeekStart,
+        COUNT(*) AS ViolationCount,
+        Location,
+        LOB
+    FROM 
+         [dbo].TranSchAdhWex
+    WHERE  ReportMonth=@Month AND ReportYear=@Year 
+		AND (@LOB IS NULL OR LOB IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@LOB, ','))) 
+		AND (@Location IS NULL OR [Location] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Location, ',')))
+		AND (@Superwisor IS NULL OR [Supervisor] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Superwisor, ',')))
+		AND (@Agent IS NULL OR [Name] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@Agent, ',')))
+		AND (@ProdStatus IS NULL OR [Production Status] IN (select CAST(Item AS nvarchar(max)) from dbo.SplitString(@ProdStatus, ',')))	
+		AND Scheduled_Duration > 0  AND
+        (Actual_Duration / Scheduled_Duration * 100) < 80
+    GROUP BY 
+        [Week Begin],Location, LOB
+    HAVING 
+        COUNT(*) > 5
+	ORDER BY ViolationCount DESC
+
+
 END
