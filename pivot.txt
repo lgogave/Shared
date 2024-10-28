@@ -1,354 +1,38 @@
-ALTER PROCEDURE [dbo].[GetSchAdhPoorAdherenceActivities]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Supervisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
-AS 
+ALTER PROCEDURE [dbo].[GetSchAdhRawData]
+	@Date datetime,	
+	@Report as int=0,
+	@MainReport as int=0,
+	@Week varchar(12)=null,
+	@MonthYear varchar(12)=null
+	
+AS
+
 BEGIN
-    DECLARE @SQL NVARCHAR(MAX);
-    DECLARE @ParamDefinition NVARCHAR(MAX);
-
-    -- Begin constructing the SQL query
-    SET @SQL = N'SELECT TOP 20 ' +
-               N'Schedule_Activity AS Activity, ' +
-               N'COUNT(DISTINCT EmpId) AS AgentCount, ' +
-               N'Location, ' +
-               N'LOB ' +
-               N'FROM [dbo].[TranSchAdhWex] WHERE 1=1 ';
-
-    -- Append mandatory filters
-    IF @Month IS NOT NULL
-        SET @SQL += N'AND ReportMonth = @Month ';
-
-    IF @Year IS NOT NULL
-        SET @SQL += N'AND ReportYear = @Year ';
-
-    -- Append optional filters using SplitString function for comma-separated values
-    IF @LOB IS NOT NULL
-        SET @SQL += N'AND LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '','')) ';
-
-    IF @Location IS NOT NULL
-        SET @SQL += N'AND [Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '','')) ';
-
-    IF @Supervisor IS NOT NULL
-        SET @SQL += N'AND [Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Supervisor, '','')) ';
-
-    IF @Agent IS NOT NULL
-        SET @SQL += N'AND [Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '','')) ';
-
-    IF @ProdStatus IS NOT NULL
-        SET @SQL += N'AND [Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '','')) ';
-
-    -- Append additional conditions
-    SET @SQL += N'AND Scheduled_Duration > 0 AND (Actual_Duration / Scheduled_Duration * 100) < 80 ';
-
-    -- Group by and having conditions
-    SET @SQL += N'GROUP BY Schedule_Activity, Location, LOB ' +
-                N'HAVING COUNT(DISTINCT EmpId) > 3 ' +
-                N'ORDER BY AgentCount DESC;';
-
-    -- Define parameters for sp_executesql
-    SET @ParamDefinition = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), ' +
-                           N'@Supervisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)';
-
-    -- Execute the dynamic SQL
-    EXEC sp_executesql @SQL, @ParamDefinition, 
-                       @Month = @Month, 
-                       @Year = @Year, 
-                       @LOB = @LOB, 
-                       @Location = @Location, 
-                       @Supervisor = @Supervisor, 
-                       @Agent = @Agent, 
-                       @ProdStatus = @ProdStatus;
-END
-
-
-
-ALTER PROCEDURE [dbo].[GetSchAdhIssuesbyTimePeriod]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Supervisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
-AS 
+SET NOCOUNT ON;
+--SET @MonthYear ='10-2024'
+Declare @MM int=0,@YY int=0
+set @YY=CAST(SUBSTRING(@MonthYear, 4, 7) as int);
+set @MM=CAST(SUBSTRING(@MonthYear, 0, 3) as int);
 BEGIN
-    DECLARE @SQL NVARCHAR(MAX);
-    DECLARE @ParamDefinition NVARCHAR(MAX);
-
-    -- Begin constructing the SQL query
-    SET @SQL = N'SELECT TOP 20 ' +
-               N'DATEPART(HOUR, Scheduled_From) AS Hour, ' +
-               N'COUNT(*) AS ViolationCount, ' +
-               N'Location, ' +
-               N'LOB ' +
-               N'FROM [dbo].[TranSchAdhWex] WHERE 1=1 ';
-
-    -- Append mandatory filters
-    IF @Month IS NOT NULL
-        SET @SQL += N'AND ReportMonth = @Month ';
-
-    IF @Year IS NOT NULL
-        SET @SQL += N'AND ReportYear = @Year ';
-
-    -- Append optional filters using SplitString function for comma-separated values
-    IF @LOB IS NOT NULL
-        SET @SQL += N'AND LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '','')) ';
-
-    IF @Location IS NOT NULL
-        SET @SQL += N'AND [Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '','')) ';
-
-    IF @Supervisor IS NOT NULL
-        SET @SQL += N'AND [Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Supervisor, '','')) ';
-
-    IF @Agent IS NOT NULL
-        SET @SQL += N'AND [Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '','')) ';
-
-    IF @ProdStatus IS NOT NULL
-        SET @SQL += N'AND [Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '','')) ';
-
-    -- Append additional conditions
-    SET @SQL += N'AND Scheduled_Duration > 0 AND (Actual_Duration / Scheduled_Duration * 100) < 80 ';
-
-    -- Group by and having conditions
-    SET @SQL += N'GROUP BY DATEPART(HOUR, Scheduled_From), Location, LOB ' +
-                N'HAVING COUNT(*) > 5 ' +
-                N'ORDER BY ViolationCount DESC;';
-
-    -- Define parameters for sp_executesql
-    SET @ParamDefinition = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), ' +
-                           N'@Supervisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)';
-
-    -- Execute the dynamic SQL
-    EXEC sp_executesql @SQL, @ParamDefinition, 
-                       @Month = @Month, 
-                       @Year = @Year, 
-                       @LOB = @LOB, 
-                       @Location = @Location, 
-                       @Supervisor = @Supervisor, 
-                       @Agent = @Agent, 
-                       @ProdStatus = @ProdStatus;
+	SELECT 
+	Convert(varchar,[Date],106) as [Date],
+	empId AS EmpID,
+	[Name] AS AgentName,
+	Supervisor,
+	Trainer,
+	[Role],
+	[Production Status] AS ProdStatus,
+	[Roster Status] AS RostStatus,
+	[Location],[Site],LOB,
+	Schedule_Activity As SchActivity,
+	SUM(Scheduled_Duration) AS SchDuration,
+	SUM(Actual_Duration) AS ActDuration,Wave,
+	0 As AdherencePer
+	FROM TranSchAdhWex
+	WHERE 
+    ReportMonth=@MM AND ReportYear=@YY 
+	GROUP by Date,empId,Name,Supervisor,Trainer,Role,[Production Status],Location,Site,LOB,Schedule_Activity,Wave,[Roster Status]
 END
+	
 
-
-
-
-ALTER PROCEDURE [dbo].[GetSchAdhSupervisorsPoorAdherence]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Supervisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
-AS 
-BEGIN
-    DECLARE @SQL NVARCHAR(MAX);
-    DECLARE @ParamDefinition NVARCHAR(MAX);
-
-    -- Begin constructing the SQL query
-    SET @SQL = N'SELECT TOP 20 ' +
-               N'[Location], ' +
-               N'COUNT(*) AS ViolationCount, ' +
-               N'LOB, ' +
-               N'Supervisor ' +
-               N'FROM [dbo].[TranSchAdhWex] WHERE 1=1 ';
-
-    -- Append mandatory filters
-    IF @Month IS NOT NULL
-        SET @SQL += N'AND ReportMonth = @Month ';
-
-    IF @Year IS NOT NULL
-        SET @SQL += N'AND ReportYear = @Year ';
-
-    -- Append optional filters using SplitString function for comma-separated values
-    IF @LOB IS NOT NULL
-        SET @SQL += N'AND LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '','')) ';
-
-    IF @Location IS NOT NULL
-        SET @SQL += N'AND [Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '','')) ';
-
-    IF @Supervisor IS NOT NULL
-        SET @SQL += N'AND [Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Supervisor, '','')) ';
-
-    IF @Agent IS NOT NULL
-        SET @SQL += N'AND [Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '','')) ';
-
-    IF @ProdStatus IS NOT NULL
-        SET @SQL += N'AND [Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '','')) ';
-
-    -- Append additional conditions
-    SET @SQL += N'AND Scheduled_Duration > 0 AND (Actual_Duration / Scheduled_Duration * 100) < 80 ';
-
-    -- Group by and having conditions
-    SET @SQL += N'GROUP BY Location, LOB, Supervisor ' +
-                N'HAVING COUNT(*) > 10 ' +
-                N'ORDER BY ViolationCount DESC;';
-
-    -- Define parameters for sp_executesql
-    SET @ParamDefinition = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), ' +
-                           N'@Supervisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)';
-
-    -- Execute the dynamic SQL
-    EXEC sp_executesql @SQL, @ParamDefinition, 
-                       @Month = @Month, 
-                       @Year = @Year, 
-                       @LOB = @LOB, 
-                       @Location = @Location, 
-                       @Supervisor = @Supervisor, 
-                       @Agent = @Agent, 
-                       @ProdStatus = @ProdStatus;
 END
-
-
-
-
-ALTER PROCEDURE [dbo].[GetSchAdhDrasticChanges]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Supervisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
-AS 
-BEGIN
-    DECLARE @SQL NVARCHAR(MAX);
-    DECLARE @ParamDefinition NVARCHAR(MAX);
-
-    -- Begin constructing the SQL query
-    SET @SQL = N'SELECT 
-        EmpId, 
-        Name, 
-        Location, 
-        LOB, 
-        Supervisor, 
-        Role, 
-        COUNT(CASE WHEN (Actual_Duration / Scheduled_Duration * 100) < 80 THEN 1 END) AS ChangeCount 
-    FROM 
-        [dbo].[TranSchAdhWex] 
-    WHERE 1=1 ';
-
-    -- Append mandatory filters
-    IF @Month IS NOT NULL
-        SET @SQL += N'AND ReportMonth = @Month ';
-
-    IF @Year IS NOT NULL
-        SET @SQL += N'AND ReportYear = @Year ';
-
-    -- Append optional filters using SplitString function for comma-separated values
-    IF @LOB IS NOT NULL
-        SET @SQL += N'AND LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '','')) ';
-
-    IF @Location IS NOT NULL
-        SET @SQL += N'AND [Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '','')) ';
-
-    IF @Supervisor IS NOT NULL
-        SET @SQL += N'AND [Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Supervisor, '','')) ';
-
-    IF @Agent IS NOT NULL
-        SET @SQL += N'AND [Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '','')) ';
-
-    IF @ProdStatus IS NOT NULL
-        SET @SQL += N'AND [Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '','')) ';
-
-    -- Additional condition
-    SET @SQL += N'AND Scheduled_Duration > 0 ';
-
-    -- Group by and having clauses
-    SET @SQL += N'GROUP BY EmpId, Name, Location, LOB, Supervisor, Role ' +
-                N'HAVING COUNT(CASE WHEN (Actual_Duration / Scheduled_Duration * 100) < 80 THEN 1 END) > 2 ' +
-                N'ORDER BY ChangeCount DESC;';
-
-    -- Define parameters for sp_executesql
-    SET @ParamDefinition = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), ' +
-                           N'@Supervisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)';
-
-    -- Execute the dynamic SQL
-    EXEC sp_executesql @SQL, @ParamDefinition, 
-                       @Month = @Month, 
-                       @Year = @Year, 
-                       @LOB = @LOB, 
-                       @Location = @Location, 
-                       @Supervisor = @Supervisor, 
-                       @Agent = @Agent, 
-                       @ProdStatus = @ProdStatus;
-END
-
-
-
-
-ALTER PROCEDURE [dbo].[GetSchAdhInconsistentPatterns]
-    @Month SMALLINT = NULL,
-    @Year SMALLINT = NULL,
-    @LOB VARCHAR(MAX) = NULL,
-    @Location VARCHAR(MAX) = NULL,
-    @Supervisor VARCHAR(MAX) = NULL,
-    @Agent VARCHAR(MAX) = NULL,
-    @ProdStatus VARCHAR(MAX) = NULL
-AS 
-BEGIN
-    DECLARE @SQL NVARCHAR(MAX);
-    DECLARE @ParamDefinition NVARCHAR(MAX);
-
-    -- Begin constructing the SQL query
-    SET @SQL = N'SELECT 
-        [Week Begin] AS WeekStart, 
-        COUNT(*) AS ViolationCount, 
-        Location, 
-        LOB 
-    FROM 
-        [dbo].[TranSchAdhWex] 
-    WHERE 1=1 ';
-
-    -- Append mandatory filters
-    IF @Month IS NOT NULL
-        SET @SQL += N'AND ReportMonth = @Month ';
-
-    IF @Year IS NOT NULL
-        SET @SQL += N'AND ReportYear = @Year ';
-
-    -- Append optional filters using SplitString function for comma-separated values
-    IF @LOB IS NOT NULL
-        SET @SQL += N'AND LOB IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@LOB, '','')) ';
-
-    IF @Location IS NOT NULL
-        SET @SQL += N'AND [Location] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Location, '','')) ';
-
-    IF @Supervisor IS NOT NULL
-        SET @SQL += N'AND [Supervisor] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Supervisor, '','')) ';
-
-    IF @Agent IS NOT NULL
-        SET @SQL += N'AND [Name] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@Agent, '','')) ';
-
-    IF @ProdStatus IS NOT NULL
-        SET @SQL += N'AND [Production Status] IN (SELECT CAST(Item AS NVARCHAR(MAX)) FROM dbo.SplitString(@ProdStatus, '','')) ';
-
-    -- Additional conditions
-    SET @SQL += N'AND Scheduled_Duration > 0 ' +
-                N'AND (Actual_Duration / Scheduled_Duration * 100) < 80 ';
-
-    -- Group by and having clauses
-    SET @SQL += N'GROUP BY [Week Begin], Location, LOB ' +
-                N'HAVING COUNT(*) > 5 ' +
-                N'ORDER BY ViolationCount DESC;';
-
-    -- Define parameters for sp_executesql
-    SET @ParamDefinition = N'@Month SMALLINT, @Year SMALLINT, @LOB VARCHAR(MAX), @Location VARCHAR(MAX), ' +
-                           N'@Supervisor VARCHAR(MAX), @Agent VARCHAR(MAX), @ProdStatus VARCHAR(MAX)';
-
-    -- Execute the dynamic SQL
-    EXEC sp_executesql @SQL, @ParamDefinition, 
-                       @Month = @Month, 
-                       @Year = @Year, 
-                       @LOB = @LOB, 
-                       @Location = @Location, 
-                       @Supervisor = @Supervisor, 
-                       @Agent = @Agent, 
-                       @ProdStatus = @ProdStatus;
-END
-
