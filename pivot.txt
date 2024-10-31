@@ -1,203 +1,57 @@
-CREATE PROCEDURE GetAgentDetailsForPoorAdherenceActivities
-AS
-BEGIN
-    SET NOCOUNT ON;
+(function($) {
+    $.fn.loader = function(action) {
+        if ($('#loaderOverlay').length === 0) {
+            // Inject CSS for loader
+            const styles = `
+                <style>
+                    /* Full-screen overlay */
+                    .loader-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.5); /* Semi-transparent grey background */
+                        display: none; /* Hidden by default */
+                        z-index: 9999;
+                    }
 
-    DECLARE @SQL NVARCHAR(MAX);
+                    /* Centered spinning icon */
+                    .loader-icon {
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        border: 8px solid #f3f3f3; /* Light border */
+                        border-top: 8px solid #3498db; /* Blue border for animation */
+                        border-radius: 50%;
+                        width: 60px;
+                        height: 60px;
+                        animation: spin 1s linear infinite;
+                    }
 
-    SET @SQL = '
-        SELECT 
-            Scheduled_Activity AS Activity,
-            EmpId,
-            Name,
-            Location,
-            LOB,
-            Supervisor,
-            Role,
-            Actual_Duration,
-            Scheduled_Duration,
-            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
-        FROM 
-            ScheduleAdherence
-        WHERE 
-            (Actual_Duration / Scheduled_Duration * 100) < 80
-            AND Scheduled_Activity IN (
-                SELECT Scheduled_Activity 
-                FROM ScheduleAdherence 
-                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
-                GROUP BY Scheduled_Activity, Location, LOB
-                HAVING COUNT(DISTINCT EmpId) > 3
-            )
-        ORDER BY 
-            Scheduled_Activity, Location, LOB;
-    ';
+                    /* Spinner animation */
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+            `;
+            $('head').append(styles); // Append the styles to <head>
 
-    EXEC sp_executesql @SQL;
-END
-
-
-
-
-CREATE PROCEDURE GetAgentDetailsForHighAdherenceIssuesByTime
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @SQL NVARCHAR(MAX);
-
-    SET @SQL = '
-        SELECT 
-            DATEPART(HOUR, Scheduled_From) AS Hour,
-            EmpId,
-            Name,
-            Location,
-            LOB,
-            Supervisor,
-            Role,
-            Actual_Duration,
-            Scheduled_Duration,
-            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
-        FROM 
-            ScheduleAdherence
-        WHERE 
-            (Actual_Duration / Scheduled_Duration * 100) < 80
-            AND DATEPART(HOUR, Scheduled_From) IN (
-                SELECT DATEPART(HOUR, Scheduled_From)
-                FROM ScheduleAdherence
-                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
-                GROUP BY DATEPART(HOUR, Scheduled_From), Location, LOB
-                HAVING COUNT(*) > 5
-            )
-        ORDER BY 
-            Hour, Location, LOB;
-    ';
-
-    EXEC sp_executesql @SQL;
-END
-
-
-
-CREATE PROCEDURE GetAgentDetailsForLocationIssues
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @SQL NVARCHAR(MAX);
-
-    SET @SQL = '
-        SELECT 
-            Location,
-            LOB,
-            Supervisor,
-            EmpId,
-            Name,
-            Role,
-            Actual_Duration,
-            Scheduled_Duration,
-            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
-        FROM 
-            ScheduleAdherence
-        WHERE 
-            (Actual_Duration / Scheduled_Duration * 100) < 80
-            AND Location IN (
-                SELECT Location 
-                FROM ScheduleAdherence 
-                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
-                GROUP BY Location, LOB, Supervisor
-                HAVING COUNT(*) > 10
-            )
-        ORDER BY 
-            Location, LOB, Supervisor;
-    ';
-
-    EXEC sp_executesql @SQL;
-END
-
-
-
-CREATE PROCEDURE GetAgentDetailsForInconsistentPatterns
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @SQL NVARCHAR(MAX);
-
-    SET @SQL = '
-        SELECT 
-            DATEPART(WEEK, Date) AS Week,
-            Location,
-            LOB,
-            EmpId,
-            Name,
-            Supervisor,
-            Role,
-            Actual_Duration,
-            Scheduled_Duration,
-            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
-        FROM 
-            ScheduleAdherence
-        WHERE 
-            (Actual_Duration / Scheduled_Duration * 100) < 80
-            AND DATEPART(WEEK, Date) IN (
-                SELECT DATEPART(WEEK, Date) 
-                FROM ScheduleAdherence 
-                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
-                GROUP BY DATEPART(WEEK, Date), Location, LOB
-                HAVING COUNT(*) > 5 -- More than 5 violations in that week
-            )
-        ORDER BY 
-            Week, Location, LOB;
-    ';
-
-    EXEC sp_executesql @SQL;
-END
-
-
-
-
-
-
-
-
-using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Threading.Tasks;
-
-public class Program
-{
-    private static readonly HttpClient client = new HttpClient();
-
-    public static async Task Main(string[] args)
-    {
-        string apiUrl = "https://api.example.com/data"; // Replace with your API endpoint
-        string username = "your_username"; // Replace with your username
-        string password = "your_password"; // Replace with your password
-
-        try
-        {
-            // Create the basic authentication header
-            var authToken = Encoding.ASCII.GetBytes($"{username}:{password}");
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authToken));
-
-            // Make a GET request to the API
-            HttpResponseMessage response = await client.GetAsync(apiUrl);
-
-            // Check if the request was successful
-            response.EnsureSuccessStatusCode();
-
-            // Read the response as a string
-            string responseData = await response.Content.ReadAsStringAsync();
-
-            Console.WriteLine("Response Data:");
-            Console.WriteLine(responseData);
+            // Create loader HTML structure
+            $('body').append(`
+                <div id="loaderOverlay" class="loader-overlay">
+                    <div class="loader-icon"></div>
+                </div>
+            `);
         }
-        catch (HttpRequestException e)
-        {
-            Console.WriteLine("Error while making request:");
-            Console.WriteLine(e.Message);
-        }
-    }
-}
 
+        // Show or hide the loader based on the action
+        if (action === 'start') {
+            $('#loaderOverlay').show();
+        } else if (action === 'stop') {
+            $('#loaderOverlay').hide();
+        }
+    };
+})(jQuery);
