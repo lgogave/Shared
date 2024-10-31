@@ -1,29 +1,153 @@
-[HttpPost]
-public IActionResult DownloadExcelFile()
-{
-    try
-    {
-        using (var package = new ExcelPackage())
-        {
-            var worksheet = package.Workbook.Worksheets.Add("SampleSheet");
-            worksheet.Cells[1, 1].Value = "Sample Data";
+CREATE PROCEDURE GetAgentDetailsForPoorAdherenceActivities
+AS
+BEGIN
+    SET NOCOUNT ON;
 
-            var stream = new MemoryStream();
-            package.SaveAs(stream);
-            stream.Position = 0;
+    DECLARE @SQL NVARCHAR(MAX);
 
-            Response.Headers.Add("Content-Disposition", "attachment; filename=SampleExcelFile.xlsx");
-            Response.Headers.Add("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    SET @SQL = '
+        SELECT 
+            Scheduled_Activity AS Activity,
+            EmpId,
+            Name,
+            Location,
+            LOB,
+            Supervisor,
+            Role,
+            Actual_Duration,
+            Scheduled_Duration,
+            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
+        FROM 
+            ScheduleAdherence
+        WHERE 
+            (Actual_Duration / Scheduled_Duration * 100) < 80
+            AND Scheduled_Activity IN (
+                SELECT Scheduled_Activity 
+                FROM ScheduleAdherence 
+                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
+                GROUP BY Scheduled_Activity, Location, LOB
+                HAVING COUNT(DISTINCT EmpId) > 3
+            )
+        ORDER BY 
+            Scheduled_Activity, Location, LOB;
+    ';
 
-            return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "SampleExcelFile.xlsx");
-        }
-    }
-    catch (Exception ex)
-    {
-        // Log the exception (use your preferred logging method)
-        Console.WriteLine($"Error generating Excel file: {ex.Message}");
+    EXEC sp_executesql @SQL;
+END
 
-        // Optionally return a status code with a message
-        return StatusCode(500, "An error occurred while generating the Excel file.");
-    }
-}
+
+
+
+CREATE PROCEDURE GetAgentDetailsForHighAdherenceIssuesByTime
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @SQL NVARCHAR(MAX);
+
+    SET @SQL = '
+        SELECT 
+            DATEPART(HOUR, Scheduled_From) AS Hour,
+            EmpId,
+            Name,
+            Location,
+            LOB,
+            Supervisor,
+            Role,
+            Actual_Duration,
+            Scheduled_Duration,
+            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
+        FROM 
+            ScheduleAdherence
+        WHERE 
+            (Actual_Duration / Scheduled_Duration * 100) < 80
+            AND DATEPART(HOUR, Scheduled_From) IN (
+                SELECT DATEPART(HOUR, Scheduled_From)
+                FROM ScheduleAdherence
+                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
+                GROUP BY DATEPART(HOUR, Scheduled_From), Location, LOB
+                HAVING COUNT(*) > 5
+            )
+        ORDER BY 
+            Hour, Location, LOB;
+    ';
+
+    EXEC sp_executesql @SQL;
+END
+
+
+
+CREATE PROCEDURE GetAgentDetailsForLocationIssues
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @SQL NVARCHAR(MAX);
+
+    SET @SQL = '
+        SELECT 
+            Location,
+            LOB,
+            Supervisor,
+            EmpId,
+            Name,
+            Role,
+            Actual_Duration,
+            Scheduled_Duration,
+            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
+        FROM 
+            ScheduleAdherence
+        WHERE 
+            (Actual_Duration / Scheduled_Duration * 100) < 80
+            AND Location IN (
+                SELECT Location 
+                FROM ScheduleAdherence 
+                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
+                GROUP BY Location, LOB, Supervisor
+                HAVING COUNT(*) > 10
+            )
+        ORDER BY 
+            Location, LOB, Supervisor;
+    ';
+
+    EXEC sp_executesql @SQL;
+END
+
+
+
+CREATE PROCEDURE GetAgentDetailsForInconsistentPatterns
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @SQL NVARCHAR(MAX);
+
+    SET @SQL = '
+        SELECT 
+            DATEPART(WEEK, Date) AS Week,
+            Location,
+            LOB,
+            EmpId,
+            Name,
+            Supervisor,
+            Role,
+            Actual_Duration,
+            Scheduled_Duration,
+            (Actual_Duration / Scheduled_Duration * 100) AS AdherencePercentage
+        FROM 
+            ScheduleAdherence
+        WHERE 
+            (Actual_Duration / Scheduled_Duration * 100) < 80
+            AND DATEPART(WEEK, Date) IN (
+                SELECT DATEPART(WEEK, Date) 
+                FROM ScheduleAdherence 
+                WHERE (Actual_Duration / Scheduled_Duration * 100) < 80
+                GROUP BY DATEPART(WEEK, Date), Location, LOB
+                HAVING COUNT(*) > 5 -- More than 5 violations in that week
+            )
+        ORDER BY 
+            Week, Location, LOB;
+    ';
+
+    EXEC sp_executesql @SQL;
+END
